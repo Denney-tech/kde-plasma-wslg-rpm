@@ -25,7 +25,7 @@ jobs:
         run: dnf -y install git-core
 
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -80,7 +80,7 @@ jobs:
           file /usr/bin/kwin_wayland_wrapper.bin | grep -q ELF
 
       - name: Upload RPMs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rpms-el10
           path: build/rpmbuild/RPMS/**/*.rpm
