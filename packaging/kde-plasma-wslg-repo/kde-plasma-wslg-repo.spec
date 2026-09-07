@@ -1,5 +1,5 @@
 # x-release-please-start-version
-%global baseversion 0.0.0
+%global baseversion 1.0.0
 # x-release-please-end-version
 
 Name:           kde-plasma-wslg-repo
