@@ -1,0 +1,41 @@
+#!/bin/bash
+# WSLg shim for kwin_wayland_wrapper.
+#
+# startplasma-wayland runs `kwin_wayland_wrapper --xwayland` with no size, so the nested
+# KWin output defaults to a 1024x768 window that sits under the Windows taskbar.
+# kwin_wayland_wrapper forwards all of its arguments to kwin_wayland, so this injects
+# --width/--height (from the WSLg display) and --fullscreen so the Plasma desktop covers
+# the whole Windows screen. Alt+Tab (Windows) still switches away; the right Ctrl key
+# releases the pointer grab.
+#
+# Set KWIN_WSLG_NO_FULLSCREEN=1 to get a maximisable window instead of true fullscreen.
+#
+# Install:
+#   sudo mv /usr/bin/kwin_wayland_wrapper /usr/bin/kwin_wayland_wrapper.bin
+#   sudo install -m0755 ~/kwin-wslg-patch/kwin_wayland_wrapper.shim /usr/bin/kwin_wayland_wrapper
+# Revert:
+#   sudo mv /usr/bin/kwin_wayland_wrapper.bin /usr/bin/kwin_wayland_wrapper
+
+REAL=/usr/bin/kwin_wayland_wrapper.bin
+extra=()
+
+# only when nested (WAYLAND_DISPLAY set) and the caller didn't already pass a size
+if [ -n "$WAYLAND_DISPLAY" ] && ! printf '%s\n' "$@" | grep -qx -- '--width'; then
+    size=$(wayland-info 2> /dev/null | awk '
+        /width: [0-9]+ px, height: [0-9]+ px/ {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "width:")  w = $(i + 1)
+                if ($i == "height:") h = $(i + 1)
+            }
+            print w, h
+            exit
+        }')
+    if [ -n "$size" ]; then
+        extra=(--width "${size% *}" --height "${size#* }")
+        if [ "${KWIN_WSLG_NO_FULLSCREEN:-0}" != "1" ]; then
+            extra+=(--fullscreen true)
+        fi
+    fi
+fi
+
+exec "$REAL" "$@" "${extra[@]}"

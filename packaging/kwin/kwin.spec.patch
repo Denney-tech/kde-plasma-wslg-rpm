@@ -1,0 +1,64 @@
+--- a/kwin.spec
++++ b/kwin.spec
+@@ -1,6 +1,6 @@
+ Name:    kwin
+ Version: 6.6.4
+-Release: 2%{?dist}
++Release: 2%{?dist}.wslg1
+ Summary: KDE Window manager
+
+ License: BSD-2-Clause AND BSD-3-Clause AND CC0-1.0 AND GPL-2.0-only AND GPL-2.0-or-later AND GPL-3.0-only AND GPL-3.0-or-later AND LGPL-2.0-only AND LGPL-2.0-or-later AND LGPL-2.1-only AND LGPL-2.1-or-later AND LGPL-3.0-only AND (GPL-2.0-only OR GPL-3.0-only) AND (LGPL-2.1-only OR LGPL-3.0-only) AND MIT
+@@ -15,6 +15,11 @@
+
+ ## proposed patches
+
++## WSLg: nested-Wayland (weston-rdprail) RAIL fixes + a wrapper shim that sizes and
++## full-screens the nested output. See the kde-plasma-wslg-rpm project.
++Patch1000: wslg-kwin-rail.patch
++Source1000: kwin_wayland_wrapper.shim
++
+
+ # Base
+ BuildRequires:  extra-cmake-modules
+@@ -113,6 +118,10 @@
+ Requires:       %{name}-libs%{?_isa} = %{version}-%{release}
+ Requires:       %{name}-common%{?_isa} = %{version}-%{release}
+ Requires:       kscreenlocker%{?_isa}
++# WSLg: the kwin_wayland_wrapper shim calls wayland-info to size the nested output
++Requires:       wayland-utils
++# Marker so kde-plasma-wslg can depend on "a kwin that has the WSLg patch" by name.
++Provides:       kwin-wslg-patch = %{version}-%{release}
+ Requires:       kf6-kirigami2%{?_isa}
+ Requires:       kf6-kdeclarative%{?_isa}
+ Requires:       libplasma%{?_isa} >= %{plasma_version}
+@@ -222,10 +231,17 @@
+ # temporary(?) hack to allow initial-setup to use /usr/bin/kwin too
+ ln -sr %{buildroot}%{_kf6_bindir}/kwin_wayland %{buildroot}%{_bindir}/kwin
+
++# WSLg: replace kwin_wayland_wrapper with a shim that appends --width/--height (from
++# wayland-info) + --fullscreen so the nested desktop fills the WSLg window; the real
++# binary is kept next to it as kwin_wayland_wrapper.bin.
++mv %{buildroot}%{_bindir}/kwin_wayland_wrapper %{buildroot}%{_bindir}/kwin_wayland_wrapper.bin
++install -m0755 %{SOURCE1000} %{buildroot}%{_bindir}/kwin_wayland_wrapper
++
+
+ %files
+ %{_bindir}/kwin
+ %{_bindir}/kwin_wayland_wrapper
++%{_bindir}/kwin_wayland_wrapper.bin
+ %{_datadir}/kwin-wayland/
+ %caps(cap_sys_nice=ep) %{_kf6_bindir}/kwin_wayland
+ %{_userunitdir}/plasma-kwin_wayland.service
+@@ -275,6 +291,13 @@
+
+
+ %changelog
++* Sun Sep 06 2026 kde-plasma-wslg-rpm <kde-plasma-wslg-rpm@users.noreply.github.com> - 6.6.4-2.wslg1
++- WSLg nested-Wayland (weston-rdprail) RAIL fixes: detect weston_rdprail_shell, paint the
++  primary layer onto the toplevel surface instead of a subsurface, full-size black
++  background buffer, low-rate heartbeat repaint (Patch1000)
++- kwin_wayland_wrapper is a shim that sizes + full-screens the nested output; the original
++  binary is kept as kwin_wayland_wrapper.bin
++
+ * Sun Apr 12 2026 Steve Cossette <farchord@gmail.com> - 6.6.4-2
+ - Added evdev as BR for controller support (#22)
