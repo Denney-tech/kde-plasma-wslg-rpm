@@ -1,0 +1,85 @@
+---
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build + test RPMs (EL10)
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/rockylinux/rockylinux:10
+    steps:
+      - name: Install git (for actions/checkout submodules)
+        run: dnf -y install git-core
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Enable EPEL + CRB, install build tooling
+        run: |
+          dnf -y install epel-release
+          dnf config-manager --set-enabled crb
+          dnf -y install \
+            rpm-build rpmdevtools rpmlint 'dnf-command(builddep)' dnf-plugins-core \
+            createrepo_c python3 diffutils patch curl tar xz ShellCheck systemd
+
+      - name: Check wslg-kwin-rail.patch is current
+        run: scripts/gen-patch.sh --check
+
+      - name: Check specs parse
+        run: scripts/check-specs.sh
+
+      - name: shellcheck the shipped scripts
+        run: |
+          shopt -s globstar
+          shellcheck --external-sources scripts/*.sh \
+            packaging/kde-plasma-wslg/plasma-wslg \
+            packaging/kde-plasma-wslg/plasma-wslg-launch \
+            packaging/kwin/kwin_wayland_wrapper.shim
+
+      - name: Validate the systemd unit
+        run: systemd-analyze verify --recursive-errors=no packaging/kde-plasma-wslg/plasma-wslg.service
+
+      - name: Build RPMs
+        run: |
+          scripts/build-rpms.sh kde-plasma-wslg-repo
+          scripts/build-rpms.sh kde-plasma-wslg
+          scripts/build-rpms.sh kwin
+
+      - name: rpmlint the built packages
+        run: rpmlint --config .rpmlint.toml build/rpmbuild/RPMS/*/*.rpm || true
+
+      - name: Install test (dependency graph resolves)
+        run: |
+          dnf -y install \
+            build/rpmbuild/RPMS/x86_64/kwin-*.rpm \
+            build/rpmbuild/RPMS/noarch/kde-plasma-wslg-*.noarch.rpm \
+            --setopt=install_weak_deps=False --nogpgcheck --exclude='kwin-debug*'
+          rpm -q kwin kwin-libs kwin-common kde-plasma-wslg kde-plasma-wslg-repo
+          test "$(rpm -q --provides kwin | grep -c '^kwin-wslg-patch ')" -eq 1
+          strings /usr/lib64/libkwin.so.6.6.4 | grep -q "weston-rdprail); enabling RAIL workaround"
+          strings /usr/lib64/libkwin.so.6.6.4 | grep -q "weston_rdprail_shell"
+          head -1 /usr/bin/kwin_wayland_wrapper | grep -q '^#!/usr/bin/bash'
+          file /usr/bin/kwin_wayland_wrapper.bin | grep -q ELF
+
+      - name: Upload RPMs
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpms-el10
+          path: build/rpmbuild/RPMS/**/*.rpm
+          if-no-files-found: error
+          retention-days: 7

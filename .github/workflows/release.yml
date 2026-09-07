@@ -1,0 +1,97 @@
+---
+name: Release
+
+# When release-please publishes a GitHub Release (from a merged release PR), build the
+# RPMs on EL10, GPG-sign them, refresh the GitHub Pages dnf repo (gh-pages branch), and
+# attach the RPMs + the .repo file to the Release.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build signed RPMs (EL10)
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/rockylinux/rockylinux:10
+    steps:
+      - name: Install git
+        run: dnf -y install git-core
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Enable EPEL + CRB, install tooling
+        run: |
+          dnf -y install epel-release
+          dnf config-manager --set-enabled crb
+          dnf -y install rpm-build rpm-sign rpmdevtools 'dnf-command(builddep)' \
+            dnf-plugins-core createrepo_c python3 diffutils patch curl tar xz gnupg2
+
+      - name: Import GPG signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          key_id=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}')
+          echo "GPG_KEY_ID=$key_id" >> "$GITHUB_ENV"
+          install -m700 -d "$HOME/.gnupg"
+          install -m600 /dev/null "$HOME/.gnupg/passphrase"
+          printf '%s' "$GPG_PASSPHRASE" > "$HOME/.gnupg/passphrase"
+          {
+            echo "%_signature gpg"
+            echo "%_gpg_name $key_id"
+            printf '%s\n' '%__gpg_sign_cmd %{__gpg} gpg --batch --no-verbose --no-armor \'
+            printf '%s\n' '    --pinentry-mode loopback \'
+            printf '%s\n' "    --passphrase-file $HOME/.gnupg/passphrase \\"
+            printf '%s\n' '    -u "%{_gpg_name}" -sbo %{__signature_filename} \'
+            printf '%s\n' '    --digest-algo sha256 %{__plaintext_filename}'
+          } > "$HOME/.rpmmacros"
+
+      - name: Build RPMs
+        run: |
+          scripts/build-rpms.sh kde-plasma-wslg-repo
+          scripts/build-rpms.sh kde-plasma-wslg
+          scripts/build-rpms.sh kwin
+
+      - name: Fetch existing gh-pages repo tree
+        run: |
+          git config --global --add safe.directory "$PWD"
+          git fetch origin gh-pages --depth=1 || true
+          rm -rf public && mkdir -p public
+          git --work-tree=public checkout origin/gh-pages -- . 2>/dev/null || true
+
+      - name: Assemble + sign the dnf repo
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: scripts/make-repo.sh build/rpmbuild/RPMS public 5
+
+      - name: Publish gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: gh-pages
+          force_orphan: false
+          commit_message: "repo: ${{ github.event.release.tag_name || github.sha }}"
+
+      - name: Attach RPMs to the Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          assets=(public/el10/x86_64/*.rpm public/el10/noarch/*.rpm
+                  packaging/kde-plasma-wslg-repo/RPM-GPG-KEY-kde-plasma-wslg)
+          gh release upload "${{ github.event.release.tag_name }}" "${assets[@]}" --clobber
