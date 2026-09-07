@@ -1,0 +1,24 @@
+[kde-plasma-wslg-rpm]
+name=kde-plasma-wslg-rpm (EL$releasever)
+baseurl=https://denney-tech.github.io/kde-plasma-wslg-rpm/el10/$basearch/
+enabled=1
+# Highest priority: dnf uses this repo's kwin even when a stock repo has a newer
+# version, so the WSLg patch is never silently reverted and 'dnf upgrade' tracks
+# this repo. Needs dnf-plugins-core (Requires: in this package).
+priority=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-kde-plasma-wslg
+metadata_expire=6h
+skip_if_unavailable=1
+
+[kde-plasma-wslg-rpm-noarch]
+name=kde-plasma-wslg-rpm noarch (EL$releasever)
+baseurl=https://denney-tech.github.io/kde-plasma-wslg-rpm/el10/noarch/
+enabled=1
+priority=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-kde-plasma-wslg
+metadata_expire=6h
+skip_if_unavailable=1
