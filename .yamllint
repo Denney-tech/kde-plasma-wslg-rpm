@@ -1,0 +1,26 @@
+---
+# yamllint config. See https://yamllint.readthedocs.io/
+extends: default
+
+rules:
+  line-length:
+    max: 160
+    level: warning
+  # GitHub Actions uses `on:` as a key, which yamllint otherwise flags as truthy.
+  truthy:
+    allowed-values: ['true', 'false']
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: disable
+  document-start:
+    present: true
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+
+ignore: |
+  packaging/kwin/dist-git/
+  build/

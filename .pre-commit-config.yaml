@@ -1,0 +1,93 @@
+---
+# Pre-commit hooks for kde-plasma-wslg-rpm.
+#
+# Setup (once per clone):
+#   pip install pre-commit
+#   pre-commit install
+#
+# Run on demand:  pre-commit run --all-files
+# Update pins:    pre-commit autoupdate
+#
+# Lint/format/hygiene only. RPM builds + install tests run in GitHub Actions.
+
+minimum_pre_commit_version: "3.0.0"
+
+# The kwin dist-git submodule is upstream's; packaging/kwin/src/ must mirror the upstream
+# tarball byte-for-byte apart from our changes, and *.patch files carry significant
+# whitespace (the leading space on empty context lines) — keep the fixers off all of them.
+exclude: |
+  (?x)^(
+    packaging/kwin/dist-git/ |
+    packaging/kwin/src/ |
+    .*\.patch$
+  )
+
+repos:
+  # General file hygiene.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+      - id: check-yaml
+      - id: check-json
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+
+  # YAML linting.
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: ["--strict"]
+
+  # Markdown linting (pure Python, no Node dependency).
+  - repo: https://github.com/jackdewinter/pymarkdown
+    rev: v0.9.38
+    hooks:
+      - id: pymarkdown
+        args: ["--config", ".pymarkdown.json", "scan"]
+        # docs/ holds verbatim archival notes from the R&D phases — kept as-written.
+        exclude: ^(CHANGELOG\.md|docs/)
+
+  # GitHub Actions workflow syntax + expression validation.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  # Shell scripts (scripts/*.sh, the payload scripts, the wrapper shim).
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.11.0
+    hooks:
+      - id: shellcheck
+        args: ["--external-sources"]
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.12.0-1
+    hooks:
+      - id: shfmt
+        args: ["-i", "4", "-ci", "-sr", "-d"]
+
+  # Project-specific checks. These reach the network (kwin tarball) and/or need an rpm
+  # toolchain with the RHEL macros, so they are opt-in locally (`pre-commit run --all-files
+  # --hook-stage manual`) and always run in CI (build.yml, in the el10 container).
+  - repo: local
+    hooks:
+      - id: gen-patch-check
+        name: wslg-kwin-rail.patch matches packaging/kwin/src/
+        entry: scripts/gen-patch.sh --check
+        language: system
+        pass_filenames: false
+        stages: [manual]
+      - id: check-specs
+        name: package specs parse (dist-git + overlay)
+        entry: scripts/check-specs.sh
+        language: system
+        pass_filenames: false
+        stages: [manual]

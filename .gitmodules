@@ -1,0 +1,4 @@
+[submodule "packaging/kwin/dist-git"]
+	path = packaging/kwin/dist-git
+	url = https://src.fedoraproject.org/rpms/kwin.git
+	branch = epel10.2

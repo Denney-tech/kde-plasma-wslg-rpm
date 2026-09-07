@@ -1,0 +1,11 @@
+# rpmlint config for kde-plasma-wslg-rpm. Filters expected findings; real issues still fail.
+Filters = [
+    # the wrapper shim + its renamed real binary live side by side on purpose
+    ".*kde-plasma-wslg.*/usr/bin/kwin_wayland_wrapper.*",
+    # noarch config-only packages
+    ".*no-documentation.*kde-plasma-wslg-repo.*",
+    # the .repo baseurl is a GitHub Pages URL, not a mirror list
+    ".*invalid-url.*kde-plasma-wslg-rpm\\.repo.*",
+    # kwin overlay changelog author is the project, not a person
+    ".*kde-plasma-wslg-rpm <kde-plasma-wslg-rpm@users\\.noreply\\.github\\.com>.*",
+]
