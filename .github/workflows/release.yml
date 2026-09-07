@@ -1,13 +1,26 @@
 ---
 name: Release
 
-# When release-please publishes a GitHub Release (from a merged release PR), build the
-# RPMs on EL10, GPG-sign them, refresh the GitHub Pages dnf repo (gh-pages branch), and
-# attach the RPMs + the .repo file to the Release.
+# Build the RPMs on EL10, GPG-sign them, refresh the GitHub Pages dnf repo (gh-pages
+# branch), and attach the RPMs + signing key to the GitHub Release.
+#
+# Invoked by release-please.yml when a release is cut (a GitHub Release created by
+# GITHUB_TOKEN does not itself trigger `on: release`, so this is a reusable workflow
+# called directly rather than an event handler). Also runnable by hand against an
+# existing tag via workflow_dispatch.
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to build and attach assets to
+        required: true
+        type: string
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to (re)build
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -29,6 +42,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.tag }}
           submodules: recursive
 
       - name: Enable EPEL + CRB, install tooling
@@ -36,17 +50,18 @@ jobs:
           dnf -y install epel-release
           dnf config-manager --set-enabled crb
           dnf -y install rpm-build rpm-sign rpmdevtools 'dnf-command(builddep)' \
-            dnf-plugins-core createrepo_c python3 diffutils patch curl tar xz gnupg2
+            dnf-plugins-core createrepo_c python3 diffutils patch curl tar xz \
+            gnupg2 file findutils
 
       - name: Import GPG signing key
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
+          install -m700 -d "$HOME/.gnupg"
           printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
           key_id=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}')
           echo "GPG_KEY_ID=$key_id" >> "$GITHUB_ENV"
-          install -m700 -d "$HOME/.gnupg"
           install -m600 /dev/null "$HOME/.gnupg/passphrase"
           printf '%s' "$GPG_PASSPHRASE" > "$HOME/.gnupg/passphrase"
           {
@@ -84,14 +99,13 @@ jobs:
           publish_dir: ./public
           publish_branch: gh-pages
           force_orphan: false
-          commit_message: "repo: ${{ github.event.release.tag_name || github.sha }}"
+          commit_message: "repo: ${{ inputs.tag }}"
 
       - name: Attach RPMs to the Release
-        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           shopt -s nullglob
           assets=(public/el10/x86_64/*.rpm public/el10/noarch/*.rpm
                   packaging/kde-plasma-wslg-repo/RPM-GPG-KEY-kde-plasma-wslg)
-          gh release upload "${{ github.event.release.tag_name }}" "${assets[@]}" --clobber
+          gh release upload "${{ inputs.tag }}" "${assets[@]}" --clobber

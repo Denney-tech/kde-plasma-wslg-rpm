@@ -59,9 +59,12 @@ have been stable across kwin 6.x; expect small offset fixes at most.
   CHANGE:` for a major). See `CONTRIBUTING.md`.
 - `release-please.yml` opens/maintains a **release PR** that bumps `version.txt`, the noarch
   specs, and `CHANGELOG.md`.
-- Merging that PR tags `vX.Y.Z` and creates a GitHub Release, which triggers `release.yml`:
-  build on EL10 → GPG-sign every RPM → `createrepo_c` + sign `repomd.xml` → push the tree to
-  the `gh-pages` branch (GitHub Pages serves it) → attach the RPMs + GPG key to the Release.
+- Merging that PR tags `vX.Y.Z` and creates a GitHub Release; `release-please.yml` then
+  calls `release.yml` (a reusable workflow — a Release made by `GITHUB_TOKEN` can't trigger
+  `on: release`): build on EL10 → GPG-sign every RPM → `createrepo_c` + sign `repomd.xml` →
+  push the tree to the `gh-pages` branch (GitHub Pages serves it) → attach the RPMs + GPG
+  key to the Release. To rebuild a release by hand: run the **Release** workflow via
+  `workflow_dispatch` with the tag.
 - The published dnf repo lives at `https://denney-tech.github.io/kde-plasma-wslg-rpm/el10/`.
   Retention: newest 5 kwin builds, all noarch (`scripts/make-repo.sh`).
 
