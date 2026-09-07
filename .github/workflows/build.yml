@@ -51,9 +51,6 @@ jobs:
             packaging/kde-plasma-wslg/plasma-wslg-launch \
             packaging/kwin/kwin_wayland_wrapper.shim
 
-      - name: Validate the systemd unit
-        run: systemd-analyze verify --recursive-errors=no packaging/kde-plasma-wslg/plasma-wslg.service
-
       - name: Build RPMs
         run: |
           scripts/build-rpms.sh kde-plasma-wslg-repo
@@ -78,6 +75,9 @@ jobs:
           grep -q "weston_rdprail_shell" /tmp/kwstrings
           [ "$(head -1 /usr/bin/kwin_wayland_wrapper)" = '#!/usr/bin/bash' ]
           file /usr/bin/kwin_wayland_wrapper.bin | grep -q ELF
+          # now that the package is installed, ExecStart= resolves — verify the unit
+          systemd-analyze verify --recursive-errors=no \
+            /usr/lib/systemd/user/plasma-wslg.service
 
       - name: Upload RPMs
         uses: actions/upload-artifact@v7
