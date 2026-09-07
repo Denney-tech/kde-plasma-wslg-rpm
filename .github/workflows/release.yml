@@ -51,7 +51,7 @@ jobs:
           dnf config-manager --set-enabled crb
           dnf -y install rpm-build rpm-sign rpmdevtools 'dnf-command(builddep)' \
             dnf-plugins-core createrepo_c python3 diffutils patch curl tar xz \
-            gnupg2 file findutils
+            gnupg2 file findutils systemd systemd-rpm-macros
 
       - name: Import GPG signing key
         env:

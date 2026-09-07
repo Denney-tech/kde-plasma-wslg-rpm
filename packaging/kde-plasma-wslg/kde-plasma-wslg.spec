@@ -22,6 +22,9 @@ Source4:        kscreenlockerrc
 Source5:        README.md
 Source6:        LICENSE
 
+# %%_userunitdir, %%_tmpfilesdir, %%tmpfiles_create, %%systemd_requires
+BuildRequires:  systemd-rpm-macros
+
 # The WSLg-patched compositor (kwin-*.wslgN carries Provides: kwin-wslg-patch).
 Requires:       kwin-wslg-patch
 Requires:       plasma-workspace
