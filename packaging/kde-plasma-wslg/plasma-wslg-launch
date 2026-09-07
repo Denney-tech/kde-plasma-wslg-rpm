@@ -1,0 +1,39 @@
+#!/bin/bash
+# KDE Plasma (Wayland) session launcher for WSLg — CPU (llvmpipe) rendering.
+# Installed by the kde-plasma-wslg package; run via `systemctl --user start plasma-wslg`
+# (or `plasma-wslg start`). See /usr/share/doc/kde-plasma-wslg/README.md.
+
+# /tmp/.X11-unix must be a writable sticky dir for Xwayland's socket. tmpfiles.d
+# (/usr/lib/tmpfiles.d/kde-plasma-wslg.conf) handles this at boot / install; this is a
+# best-effort fallback if it's somehow not writable (e.g. re-created by WSLg as root).
+if [ ! -w /tmp/.X11-unix ]; then
+    sudo -n mount -t tmpfs -o mode=1777 tmpfs /tmp/.X11-unix 2> /dev/null || true
+fi
+
+# The real per-user runtime dir (mode 0700, has pipewire) — NOT /mnt/wslg/runtime-dir (0777).
+XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export XDG_RUNTIME_DIR
+export WAYLAND_DISPLAY=wayland-0
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=KDE
+export QT_QPA_PLATFORM=wayland
+
+# WSLg's Weston 9 offers no dmabuf/wl_drm and there is no /dev/dri render node, so KWin's
+# OpenGL backend can't init nested and GPU buffers can't be shared — force the software
+# stack. (A GPU Mesa d3d12 build was tried and confirmed unusable for the desktop here.)
+export LIBGL_ALWAYS_SOFTWARE=1
+export GALLIUM_DRIVER=llvmpipe
+export MESA_LOADER_DRIVER_OVERRIDE=llvmpipe
+export __GLX_VENDOR_LIBRARY_NAME=mesa
+LP_NUM_THREADS="$(nproc)"
+export LP_NUM_THREADS
+
+# KWin -> QPainter software compositor (it falls back to this anyway).
+export KWIN_COMPOSE=Q
+export KWIN_DRM_NO_AMS=1
+
+# The QPainter compositor only composites wl_shm client buffers, so Qt Quick clients
+# (plasmashell, krunner, ...) must render in software.
+export QT_QUICK_BACKEND=software
+
+exec dbus-run-session -- startplasma-wayland

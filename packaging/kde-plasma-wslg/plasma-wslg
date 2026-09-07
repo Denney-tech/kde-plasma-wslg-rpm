@@ -1,0 +1,30 @@
+#!/bin/bash
+# Control the nested KDE Plasma (Wayland) desktop (kde-plasma-wslg package).
+set -euo pipefail
+SERVICE=plasma-wslg
+
+usage() {
+    cat << EOF
+usage: ${0##*/} {start|stop|status}
+
+  start   launch the full-screen Plasma desktop  (systemctl --user start $SERVICE)
+  stop    log out / close it                     (systemctl --user stop  $SERVICE)
+  status  show whether it is running             (systemctl --user status $SERVICE)
+
+logs:  journalctl --user -u $SERVICE -f
+EOF
+}
+
+case "${1:-}" in
+    start | stop | status) exec systemctl --user "$1" "$SERVICE" ;;
+    -h | --help | help) usage ;;
+    "")
+        usage >&2
+        exit 2
+        ;;
+    *)
+        printf '%s: unknown command %q\n\n' "${0##*/}" "$1" >&2
+        usage >&2
+        exit 2
+        ;;
+esac

@@ -1,0 +1,19 @@
+[Unit]
+Description=KDE Plasma (Wayland) desktop nested under WSLg
+Documentation=file:///usr/share/doc/kde-plasma-wslg/README.md
+# not tied to any target; started manually.
+
+[Service]
+Type=exec
+ExecStart=/usr/libexec/kde-plasma-wslg/plasma-wslg-launch
+Restart=no
+SuccessExitStatus=0
+TimeoutStopSec=20
+KillMode=mixed
+Slice=session.slice
+# For a normal maximisable window instead of true full-screen, uncomment:
+#Environment=KWIN_WSLG_NO_FULLSCREEN=1
+
+# No [Install] section on purpose: the unit is `static` and cannot be `enable`d.
+#   systemctl --user start|stop|status plasma-wslg       (or: plasma-wslg start|stop|status)
+#   journalctl  --user -u plasma-wslg -f
