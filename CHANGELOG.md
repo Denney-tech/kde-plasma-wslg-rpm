@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/Denney-tech/kde-plasma-wslg-rpm/compare/v1.0.0...v1.0.1) (2026-09-07)
+
+
+### Bug Fixes
+
+* kde-plasma-wslg build needs systemd-rpm-macros ([70afbf0](https://github.com/Denney-tech/kde-plasma-wslg-rpm/commit/70afbf07a7eb0947010f3de12ab6c8464b997bee))
+
 ## 1.0.0 (2026-09-07)
 
 
