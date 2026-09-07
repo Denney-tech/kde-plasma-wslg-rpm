@@ -28,6 +28,10 @@ git submodule update --init --recursive
 ```
 
 `shellcheck`, `shfmt`, and `actionlint` are fetched by pre-commit automatically.
+Also install `shellcheck` on your `PATH` (`dnf install ShellCheck`, `brew install
+shellcheck`, …) — `actionlint` only runs its embedded shell-script checks when it can
+find `shellcheck`, and CI does, so a local run without it will miss workflow-script
+findings.
 
 ## Before you push
 
