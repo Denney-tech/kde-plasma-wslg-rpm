@@ -59,19 +59,22 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           install -m700 -d "$HOME/.gnupg"
+          printf 'allow-loopback-pinentry\n' > "$HOME/.gnupg/gpg-agent.conf"
+          printf 'pinentry-mode loopback\n'  > "$HOME/.gnupg/gpg.conf"
+          gpg-connect-agent reloadagent /bye
           printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
           key_id=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}')
           echo "GPG_KEY_ID=$key_id" >> "$GITHUB_ENV"
           install -m600 /dev/null "$HOME/.gnupg/passphrase"
           printf '%s' "$GPG_PASSPHRASE" > "$HOME/.gnupg/passphrase"
+          sign_cmd="%{__gpg} gpg --batch --no-verbose --no-armor --pinentry-mode loopback"
+          sign_cmd="$sign_cmd --passphrase-file $HOME/.gnupg/passphrase"
+          sign_cmd="$sign_cmd -u \"%{_gpg_name}\" -sbo %{__signature_filename}"
+          sign_cmd="$sign_cmd --digest-algo sha256 %{__plaintext_filename}"
           {
             echo "%_signature gpg"
             echo "%_gpg_name $key_id"
-            printf '%s\n' '%__gpg_sign_cmd %{__gpg} gpg --batch --no-verbose --no-armor \'
-            printf '%s\n' '    --pinentry-mode loopback \'
-            printf '%s\n' "    --passphrase-file $HOME/.gnupg/passphrase \\"
-            printf '%s\n' '    -u "%{_gpg_name}" -sbo %{__signature_filename} \'
-            printf '%s\n' '    --digest-algo sha256 %{__plaintext_filename}'
+            echo "%__gpg_sign_cmd $sign_cmd"
           } > "$HOME/.rpmmacros"
 
       - name: Build RPMs

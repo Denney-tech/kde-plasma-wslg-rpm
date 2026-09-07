@@ -25,10 +25,14 @@ for f in "$PKG_DIR"/kwin/src/*; do
 done
 
 out="$tmp/wslg-kwin-rail.patch"
+raw="$tmp/wslg-kwin-rail.raw"
+# diff(1) exits 1 when the trees differ (the normal case here); only >1 is a real error.
+rc=0
+(cd "$tmp" && diff -Nurp "kwin-$ver.orig" "kwin-$ver") > "$raw" || rc=$?
+[ "$rc" -le 1 ] || die "diff failed (exit $rc)"
 # Strip the volatile mtime from the ---/+++ header lines so the patch is reproducible.
-(cd "$tmp" && diff -Nurp "kwin-$ver.orig" "kwin-$ver" || true) |
-    sed -E -e "s|kwin-$ver\.orig/|a/|g" -e "s|kwin-$ver/|b/|g" \
-        -e 's|^(--- a/[^\t]+)\t.*|\1|' -e 's|^(\+\+\+ b/[^\t]+)\t.*|\1|' > "$out"
+sed -E -e "s|kwin-$ver\.orig/|a/|g" -e "s|kwin-$ver/|b/|g" \
+    -e 's|^(--- a/[^\t]+)\t.*|\1|' -e 's|^(\+\+\+ b/[^\t]+)\t.*|\1|' "$raw" > "$out"
 
 grep -q '^--- a/' "$out" || die "generated patch is empty — src/ matches upstream?"
 
