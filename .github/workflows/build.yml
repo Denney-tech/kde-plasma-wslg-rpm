@@ -35,7 +35,7 @@ jobs:
           dnf config-manager --set-enabled crb
           dnf -y install \
             rpm-build rpmdevtools rpmlint 'dnf-command(builddep)' dnf-plugins-core \
-            createrepo_c python3 diffutils patch curl tar xz ShellCheck systemd
+            createrepo_c python3 diffutils patch curl tar xz ShellCheck systemd file findutils
 
       - name: Check wslg-kwin-rail.patch is current
         run: scripts/gen-patch.sh --check
@@ -65,15 +65,18 @@ jobs:
 
       - name: Install test (dependency graph resolves)
         run: |
-          dnf -y install \
-            build/rpmbuild/RPMS/x86_64/kwin-*.rpm \
-            build/rpmbuild/RPMS/noarch/kde-plasma-wslg-*.noarch.rpm \
-            --setopt=install_weak_deps=False --nogpgcheck --exclude='kwin-debug*'
+          mapfile -t rpms < <(find build/rpmbuild/RPMS -name '*.rpm' \
+            ! -name '*-debuginfo-*' ! -name '*-debugsource-*' ! -name '*-devel-*' ! -name '*-doc-*')
+          dnf -y install "${rpms[@]}" \
+            --setopt=install_weak_deps=False --nogpgcheck
           rpm -q kwin kwin-libs kwin-common kde-plasma-wslg kde-plasma-wslg-repo
-          test "$(rpm -q --provides kwin | grep -c '^kwin-wslg-patch ')" -eq 1
-          strings /usr/lib64/libkwin.so.6.6.4 | grep -q "weston-rdprail); enabling RAIL workaround"
-          strings /usr/lib64/libkwin.so.6.6.4 | grep -q "weston_rdprail_shell"
-          head -1 /usr/bin/kwin_wayland_wrapper | grep -q '^#!/usr/bin/bash'
+          rpm -q --provides kwin | grep -q '^kwin-wslg-patch = '
+          rpm -q --requires kde-plasma-wslg | grep -qx 'kwin-wslg-patch'
+          # strings(1) on a ~9 MB lib + `grep -q` early-exit would SIGPIPE under pipefail
+          strings /usr/lib64/libkwin.so.6.6.4 > /tmp/kwstrings
+          grep -q "weston-rdprail); enabling RAIL workaround" /tmp/kwstrings
+          grep -q "weston_rdprail_shell" /tmp/kwstrings
+          [ "$(head -1 /usr/bin/kwin_wayland_wrapper)" = '#!/usr/bin/bash' ]
           file /usr/bin/kwin_wayland_wrapper.bin | grep -q ELF
 
       - name: Upload RPMs

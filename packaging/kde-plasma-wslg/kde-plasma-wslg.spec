@@ -33,9 +33,10 @@ Requires:       mesa-dri-drivers
 %{?systemd_requires}
 
 %description
-Scripts, a systemd user service and system config to run a nested KDE Plasma 6 Wayland
-session inside a WSLg window on a RHEL 10 WSL distro. Rendering is CPU-only (llvmpipe);
-GPU compositing is not possible under WSLg's Weston.
+Scripts, a systemd user service and system config to run a nested
+KDE Plasma 6 Wayland session inside a WSLg window on a RHEL 10 WSL
+distro. Rendering is CPU-only (llvmpipe); GPU compositing is not
+possible under WSLg's Weston.
 
 Start it with 'plasma-wslg start' (or 'systemctl --user start plasma-wslg').
 

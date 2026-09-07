@@ -8,4 +8,10 @@ Filters = [
     ".*invalid-url.*kde-plasma-wslg-rpm\\.repo.*",
     # kwin overlay changelog author is the project, not a person
     ".*kde-plasma-wslg-rpm <kde-plasma-wslg-rpm@users\\.noreply\\.github\\.com>.*",
+    # verbatim GPL-2.0 text carries the historical FSF address
+    ".*incorrect-fsf-address.*",
+    # inherited from EPEL's kwin: duplicate locale catalogs upstream ships
+    ".*(files-duplicate|files-duplicated-waste).*kwin-common.*",
+    # project jargon: llvmpipe, dnf, WSLg, Weston, Xwayland, kwin, rdprail, ...
+    ".*spelling-error.*",
 ]

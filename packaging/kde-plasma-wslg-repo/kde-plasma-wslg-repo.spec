@@ -19,9 +19,10 @@ Source2:        LICENSE
 Requires:       dnf-plugins-core
 
 %description
-Drops the kde-plasma-wslg-rpm dnf repository definition (hosted on GitHub Pages) and its
-signing key. The repository has priority=1 so dnf serves its patched kwin regardless of a
-newer stock version, which makes 'dnf upgrade' the entire update path for the WSLg desktop.
+Drops the kde-plasma-wslg-rpm dnf repository definition (hosted on
+GitHub Pages) and its signing key. The repository has priority=1 so
+dnf serves its patched kwin regardless of a newer stock version,
+which makes 'dnf upgrade' the entire update path for the WSLg desktop.
 
 Install this first, then 'dnf install kde-plasma-wslg'.
 
