@@ -35,6 +35,9 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: quay.io/rockylinux/rockylinux:10
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Install git
         run: dnf -y install git-core
@@ -49,9 +52,11 @@ jobs:
         run: |
           dnf -y install epel-release
           dnf config-manager --set-enabled crb
+          curl -fsSL https://cli.github.com/packages/rpm/gh-cli.repo \
+            -o /etc/yum.repos.d/gh-cli.repo
           dnf -y install rpm-build rpm-sign rpmdevtools 'dnf-command(builddep)' \
             dnf-plugins-core createrepo_c python3 diffutils patch curl tar xz \
-            gnupg2 file findutils systemd systemd-rpm-macros
+            gnupg2 file findutils systemd systemd-rpm-macros gh
 
       - name: Import GPG signing key
         env:
@@ -111,4 +116,5 @@ jobs:
           shopt -s nullglob
           assets=(public/el10/x86_64/*.rpm public/el10/noarch/*.rpm
                   packaging/kde-plasma-wslg-repo/RPM-GPG-KEY-kde-plasma-wslg)
-          gh release upload "${{ inputs.tag }}" "${assets[@]}" --clobber
+          gh release upload "${{ inputs.tag }}" "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" --clobber
