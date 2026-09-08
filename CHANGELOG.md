@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/Denney-tech/kde-plasma-wslg-rpm/compare/v1.0.0...v1.0.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* install gh in the release container for the asset upload ([9d4fcdf](https://github.com/Denney-tech/kde-plasma-wslg-rpm/commit/9d4fcdf0cd4fa94e1d1ec1bfcc371fef89d87d17))
+
 ## 1.0.0 (2026-09-07)
 
 
