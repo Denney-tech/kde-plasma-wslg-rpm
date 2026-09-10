@@ -106,7 +106,12 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public
           publish_branch: gh-pages
-          force_orphan: false
+          # Keep gh-pages at a single commit — the RPMs are disposable artifacts and
+          # the repo tree is re-derived from public/ (seeded from the previous gh-pages)
+          # + make-repo.sh's retention every run, so its git history has no value and
+          # would only bloat the branch with binaries. Roll back by re-running Release
+          # against an older tag.
+          force_orphan: true
           commit_message: "repo: ${{ inputs.tag }}"
 
       - name: Attach RPMs to the Release
