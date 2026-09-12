@@ -1,0 +1,7 @@
+* Sun Sep 06 2026 kde-plasma-wslg-rpm <kde-plasma-wslg-rpm@users.noreply.github.com> - 6.6.4-2.wslg1
+- WSLg nested-Wayland (weston-rdprail) RAIL fixes: detect weston_rdprail_shell, paint the
+  primary layer onto the toplevel surface instead of a subsurface, full-size black
+  background buffer, low-rate heartbeat repaint (Patch1000)
+- kwin_wayland_wrapper is a shim that sizes + full-screens the nested output; the original
+  binary is kept as kwin_wayland_wrapper.bin
+

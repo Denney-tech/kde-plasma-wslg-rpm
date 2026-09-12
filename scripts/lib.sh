@@ -48,7 +48,10 @@ fetch_kwin_tarball() {
 }
 
 # rendered_spec <pkg> <outdir>  -> writes the build-ready spec to <outdir>/<pkg>.spec
-#   kwin: dist-git spec + kwin.spec.patch overlay
+#   kwin: dist-git spec + kwin.spec.patch overlay + the .wslgN release suffix and our
+#         %changelog entry, both applied by anchor (not diff context) so a routine
+#         upstream Release/changelog bump can never conflict with them — see
+#         MAINTAINING.md "Why the Release suffix and changelog aren't in the diff".
 #   others: the spec as-is under packaging/<pkg>/
 rendered_spec() {
     local pkg="$1" out="$2" spec
@@ -58,6 +61,16 @@ rendered_spec() {
             cp "$DISTGIT/kwin.spec" "$out/kwin.spec"
             patch -s -p1 -d "$out" < "$PKG_DIR/kwin/kwin.spec.patch" ||
                 die "kwin.spec.patch no longer applies to the dist-git spec — run scripts/rebase-kwin.sh"
+
+            local wslgn=""
+            wslgn="$(tr -d '[:space:]' < "$PKG_DIR/kwin/wslg-release")"
+            [ -n "$wslgn" ] || die "packaging/kwin/wslg-release is empty"
+            sed -i -E "s/^(Release:[[:space:]]*[^[:space:]]+)\$/\1.wslg${wslgn}/" "$out/kwin.spec"
+            grep -qE "^Release:.*\.wslg${wslgn}\$" "$out/kwin.spec" ||
+                die "couldn't find/suffix the Release: line in kwin.spec — dist-git spec format changed?"
+
+            grep -qx '%changelog' "$out/kwin.spec" || die "no %changelog line in kwin.spec"
+            sed -i "/^%changelog\$/r $PKG_DIR/kwin/wslg-changelog-entry.txt" "$out/kwin.spec"
             ;;
         *)
             spec="$PKG_DIR/$pkg/$pkg.spec"

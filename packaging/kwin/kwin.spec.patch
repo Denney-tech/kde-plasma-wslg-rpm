@@ -1,13 +1,5 @@
 --- a/kwin.spec
 +++ b/kwin.spec
-@@ -1,6 +1,6 @@
- Name:    kwin
- Version: 6.6.4
--Release: 2%{?dist}
-+Release: 2%{?dist}.wslg1
- Summary: KDE Window manager
-
- License: BSD-2-Clause AND BSD-3-Clause AND CC0-1.0 AND GPL-2.0-only AND GPL-2.0-or-later AND GPL-3.0-only AND GPL-3.0-or-later AND LGPL-2.0-only AND LGPL-2.0-or-later AND LGPL-2.1-only AND LGPL-2.1-or-later AND LGPL-3.0-only AND (GPL-2.0-only OR GPL-3.0-only) AND (LGPL-2.1-only OR LGPL-3.0-only) AND MIT
 @@ -15,6 +15,11 @@
 
  ## proposed patches
@@ -49,16 +41,3 @@
  %{_datadir}/kwin-wayland/
  %caps(cap_sys_nice=ep) %{_kf6_bindir}/kwin_wayland
  %{_userunitdir}/plasma-kwin_wayland.service
-@@ -275,6 +291,13 @@
-
-
- %changelog
-+* Sun Sep 06 2026 kde-plasma-wslg-rpm <kde-plasma-wslg-rpm@users.noreply.github.com> - 6.6.4-2.wslg1
-+- WSLg nested-Wayland (weston-rdprail) RAIL fixes: detect weston_rdprail_shell, paint the
-+  primary layer onto the toplevel surface instead of a subsurface, full-size black
-+  background buffer, low-rate heartbeat repaint (Patch1000)
-+- kwin_wayland_wrapper is a shim that sizes + full-screens the nested output; the original
-+  binary is kept as kwin_wayland_wrapper.bin
-+
- * Sun Apr 12 2026 Steve Cossette <farchord@gmail.com> - 6.6.4-2
- - Added evdev as BR for controller support (#22)

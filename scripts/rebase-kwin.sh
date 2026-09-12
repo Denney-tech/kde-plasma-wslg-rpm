@@ -25,34 +25,43 @@ newrel="$(spec_field kwin.spec Release:)"
 log "dist-git now at $(git rev-parse --short HEAD) — kwin $newver-$newrel"
 cd "$REPO_ROOT"
 
-log "re-applying kwin.spec.patch"
+log "checking kwin.spec.patch still applies"
+# The overlay no longer touches the Release: line or %changelog (rendered_spec() applies
+# those by anchor instead, see lib.sh) — the three remaining hunks are anchored on spec
+# text that upstream essentially never moves, so this should apply with zero fuzz. If it
+# needs fuzz at all, that's the overlay's anchors having drifted and worth tightening by
+# hand even though it technically still applied.
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 cp "$DISTGIT/kwin.spec" "$tmp/kwin.spec"
-if patch -p1 -d "$tmp" --fuzz=3 < packaging/kwin/kwin.spec.patch > "$tmp/patchlog" 2>&1; then
-    if grep -q 'FAILED\|fuzz' "$tmp/patchlog"; then
-        cat "$tmp/patchlog" >&2
-        die "overlay applied with fuzz/rejects — edit packaging/kwin/kwin.spec.patch by hand, then re-run"
-    fi
-    # regenerate the overlay from the cleanly-patched result so line offsets stay tight
-    diff -u "$DISTGIT/kwin.spec" "$tmp/kwin.spec" |
-        sed -E -e '1s|.*|--- a/kwin.spec|' -e '2s|.*|+++ b/kwin.spec|' > packaging/kwin/kwin.spec.patch
-    log "refreshed packaging/kwin/kwin.spec.patch"
+if patch -p1 -d "$tmp" --fuzz=0 < packaging/kwin/kwin.spec.patch > "$tmp/patchlog" 2>&1; then
+    log "kwin.spec.patch applies cleanly, no changes needed"
+elif patch -p1 -d "$tmp" --fuzz=3 < packaging/kwin/kwin.spec.patch > "$tmp/patchlog" 2>&1; then
+    cat "$tmp/patchlog" >&2
+    log "WARNING: kwin.spec.patch only applied with fuzz — consider tightening its anchors by hand"
 else
     cat "$tmp/patchlog" >&2
-    die "overlay does not apply — edit packaging/kwin/kwin.spec.patch by hand, then re-run"
+    die "kwin.spec.patch does not apply to the new dist-git spec — edit it by hand, then re-run"
 fi
 
 log "regenerating wslg-kwin-rail.patch against kwin $newver"
+before_patch_hash="$(sha256sum packaging/kwin/wslg-kwin-rail.patch 2> /dev/null | awk '{print $1}')"
 scripts/gen-patch.sh
+after_patch_hash="$(sha256sum packaging/kwin/wslg-kwin-rail.patch | awk '{print $1}')"
 
 cat >&2 << EOF
 
 Next:
-  1. bump the .wslgM suffix + add a %changelog entry in packaging/kwin/kwin.spec.patch
-     if the C++ patch or spec overlay changed meaningfully.
-  2. git add packaging/kwin/dist-git packaging/kwin/kwin.spec.patch \\
-            packaging/kwin/wslg-kwin-rail.patch .gitmodules
-  3. scripts/build-rpms.sh kwin   (in an el10 container) to prove it still builds.
-  4. commit as  fix: rebase kwin onto $newver
+  1. scripts/build-rpms.sh kwin   (in an el10 container) to prove it still builds.
+  2. git add packaging/kwin/dist-git packaging/kwin/wslg-kwin-rail.patch .gitmodules
+  3. commit as  fix: rebase kwin onto $newver
 EOF
+if [ "$before_patch_hash" != "$after_patch_hash" ]; then
+    cat >&2 << 'EOF'
+
+wslg-kwin-rail.patch content changed (not just re-generated identically) — the C++ patch
+needed adjusting for this upstream version. Also bump packaging/kwin/wslg-release and add
+a dated entry to packaging/kwin/wslg-changelog-entry.txt describing what changed, so the
+built package's Release/changelog reflect it.
+EOF
+fi

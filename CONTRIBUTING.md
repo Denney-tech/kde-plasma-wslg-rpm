@@ -14,9 +14,10 @@ Releases and the changelog are generated from commit messages, so they must foll
 
 Scopes are optional but nice: `fix(kwin): …`, `feat(repo): …`, `docs(gpu): …`.
 
-The kwin **RPM** `Release` (`N%{?dist}.wslgM`) is bumped by hand in
-`packaging/kwin/kwin.spec.patch` when the patch/overlay changes — it is *not* tied to the
-repo semver. release-please owns `version.txt`, the two noarch specs, and `CHANGELOG.md`;
+The kwin **RPM** `Release` (`N%{?dist}.wslgM`) tracks EPEL's `N` automatically; the `M` is
+`packaging/kwin/wslg-release`, bumped by hand only when the C++ patch itself changes — it is
+*not* tied to the repo semver. release-please owns `version.txt`, the two noarch specs, and
+`CHANGELOG.md`;
 don't touch those in a normal PR.
 
 ## Setup

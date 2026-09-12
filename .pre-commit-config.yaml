@@ -13,12 +13,15 @@
 minimum_pre_commit_version: "3.0.0"
 
 # The kwin dist-git submodule is upstream's; packaging/kwin/src/ must mirror the upstream
-# tarball byte-for-byte apart from our changes, and *.patch files carry significant
-# whitespace (the leading space on empty context lines) — keep the fixers off all of them.
+# tarball byte-for-byte apart from our changes, *.patch files carry significant whitespace
+# (the leading space on empty context lines), and wslg-changelog-entry.txt needs its
+# trailing blank line (it's sed-inserted verbatim ahead of the next %changelog entry) —
+# keep the fixers off all of them.
 exclude: |
   (?x)^(
     packaging/kwin/dist-git/ |
     packaging/kwin/src/ |
+    packaging/kwin/wslg-changelog-entry\.txt$ |
     .*\.patch$
   )
 
