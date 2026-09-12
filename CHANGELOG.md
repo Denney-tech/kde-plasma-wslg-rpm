@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/Denney-tech/kde-plasma-wslg-rpm/compare/v1.0.0...v1.1.0) (2026-09-12)
+
+
+### Features
+
+* automate kwin dist-git tracking and a RHEL 10 minor-version watch ([7351b59](https://github.com/Denney-tech/kde-plasma-wslg-rpm/commit/7351b592f097aebefb1e51db0f042b811fa88b1e))
+
+
+### Bug Fixes
+
+* make the kwin spec overlay immune to routine EPEL churn ([9902418](https://github.com/Denney-tech/kde-plasma-wslg-rpm/commit/9902418113557a7f7d780a998c1c197bddb5b8e7))
+
 ## 1.0.0 (2026-09-07)
 
 
