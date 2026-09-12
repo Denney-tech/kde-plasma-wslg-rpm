@@ -1,0 +1,109 @@
+---
+name: Watch for a new RHEL 10 minor release
+
+# We track EPEL's frozen-per-minor-release branch (epel10.N) rather than the rolling
+# `epel10` branch (which tracks CentOS Stream 10, i.e. ahead of whatever RHEL 10.N is
+# actually GA — real compatibility risk for a repo that targets RHEL). This checks
+# whether a newer RHEL 10 minor is out and, once EPEL has branched for it, moves
+# packaging/kwin/dist-git onto it via a PR — never onto `epel10` itself.
+on:
+  schedule:
+    - cron: "17 6 * * 1" # weekly, Monday
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Compare tracked epel10.N against RHEL 10's latest published minor
+        id: rhel
+        run: |
+          tracked_branch="$(git config -f .gitmodules submodule.packaging/kwin/dist-git.branch)"
+          case "$tracked_branch" in
+            epel10.*) tracked_minor="${tracked_branch#epel10.}" ;;
+            *) echo "::error::tracked branch '$tracked_branch' isn't an epel10.N branch — not touching it" && exit 1 ;;
+          esac
+          # endoflife.date is a public, unauthenticated tracker of upstream release
+          # announcements — there's no open, subscription-free RHEL API for this.
+          latest="$(curl -fsSL https://endoflife.date/api/rhel.json | jq -r '.[] | select(.cycle=="10") | .latest')"
+          latest_minor="${latest#10.}"
+          {
+            echo "tracked_branch=$tracked_branch"
+            echo "tracked_minor=$tracked_minor"
+            echo "latest_minor=$latest_minor"
+          } >> "$GITHUB_OUTPUT"
+          echo "tracking $tracked_branch; RHEL 10's latest published minor is 10.$latest_minor"
+
+      - name: Does epel10.<latest_minor> exist yet?
+        id: epel
+        if: steps.rhel.outputs.latest_minor != steps.rhel.outputs.tracked_minor
+        run: |
+          new_branch="epel10.${{ steps.rhel.outputs.latest_minor }}"
+          if git ls-remote --exit-code --heads \
+            https://src.fedoraproject.org/rpms/kwin.git "$new_branch" > /dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "new_branch=$new_branch" >> "$GITHUB_OUTPUT"
+
+      - name: RHEL moved but EPEL hasn't branched yet — open/update a tracking issue
+        if: |
+          steps.rhel.outputs.latest_minor != steps.rhel.outputs.tracked_minor &&
+          steps.epel.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="RHEL 10.${{ steps.rhel.outputs.latest_minor }} is out — waiting on ${{ steps.epel.outputs.new_branch }}"
+          if [ -z "$(gh issue list --search "in:title \"$title\"" --state open --json number --jq '.[0].number')" ]; then
+            gh issue create --title "$title" --body "endoflife.date reports RHEL 10's \
+          latest minor as 10.${{ steps.rhel.outputs.latest_minor }}, but \
+          \`${{ steps.epel.outputs.new_branch }}\` doesn't exist on \
+          src.fedoraproject.org/rpms/kwin yet. This check re-runs every Monday; once the \
+          branch appears it opens the rebase PR itself and closes this issue."
+          fi
+
+      - name: EPEL has branched — move the submodule and open a PR
+        if: |
+          steps.rhel.outputs.latest_minor != steps.rhel.outputs.tracked_minor &&
+          steps.epel.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_BRANCH: ${{ steps.epel.outputs.new_branch }}
+          NEW_MINOR: ${{ steps.rhel.outputs.latest_minor }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          branch="rhel-10-${NEW_MINOR}"
+          git switch -c "$branch"
+          scripts/rebase-kwin.sh "$NEW_BRANCH"
+          git add .gitmodules packaging/kwin/dist-git packaging/kwin/wslg-kwin-rail.patch
+          git commit -m "fix: track ${NEW_BRANCH} (RHEL 10.${NEW_MINOR})
+
+          RHEL 10.${NEW_MINOR} is the latest published minor release (per
+          endoflife.date) and ${NEW_BRANCH} now exists on the kwin dist-git. Move the
+          tracked submodule branch onto it (never the rolling epel10 branch, which
+          tracks CentOS Stream ahead of RHEL's actual GA).
+
+          Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "Track ${NEW_BRANCH} (RHEL 10.${NEW_MINOR})" \
+            --body "Automated: RHEL 10.${NEW_MINOR} is out and \`${NEW_BRANCH}\` exists \
+          on the kwin dist-git. The \`Build\` check on this PR proves kwin still builds \
+          off it. Review + merge to move the desktop onto RHEL 10.${NEW_MINOR}."
+          title="RHEL 10.${NEW_MINOR} is out — waiting on ${NEW_BRANCH}"
+          num="$(gh issue list --search "in:title \"$title\"" --state open --json number --jq '.[0].number')"
+          [ -n "$num" ] && gh issue close "$num" --comment "Opened #$(gh pr view "$branch" --json number --jq .number)."
+          exit 0

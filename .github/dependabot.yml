@@ -8,3 +8,14 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+
+  # Watches packaging/kwin/dist-git for new commits on whatever branch .gitmodules has it
+  # tracking (currently epel10.2) — never jumps branches on its own, so this can never
+  # drift onto the rolling `epel10` branch; only kwin-rhel-minor-watch.yml moves the
+  # tracked branch (epel10.N -> epel10.N+1). kwin-dependabot-rebase.yml (pull_request_target)
+  # finishes the PR this opens: regenerates wslg-kwin-rail.patch and proves kwin still
+  # builds. See MAINTAINING.md.
+  - package-ecosystem: gitsubmodule
+    directory: /
+    schedule:
+      interval: weekly
