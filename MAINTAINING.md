@@ -54,8 +54,12 @@ scripts/rebase-kwin.sh epel10.3      # or a bare sha, or no arg for the tracked 
 
 It moves the submodule, verifies `kwin.spec.patch`'s three structural hunks still apply
 (`--fuzz=0`; a fuzzy-but-successful apply is a warning to tighten the anchors, not a hard
-failure), and regenerates `wslg-kwin-rail.patch` against the new tarball. If the overlay
-conflicts outright, it stops and tells you to fix `packaging/kwin/kwin.spec.patch` by hand.
+failure), 3-way merges `packaging/kwin/src/` onto the new kwin version (base = old
+upstream tarball, so upstream changes to those files are kept instead of being silently
+overwritten by our whole-file copies), and regenerates `wslg-kwin-rail.patch` against the
+new tarball. If the spec overlay conflicts outright, it stops and tells you to fix
+`packaging/kwin/kwin.spec.patch` by hand; if the C++ merge conflicts, it stops leaving
+conflict markers in `packaging/kwin/src/` — resolve them, then run `scripts/gen-patch.sh`.
 If `wslg-kwin-rail.patch`'s *content* actually changed (not just a no-op regeneration — the
 script diffs before/after), it tells you to also bump `wslg-release` +
 `wslg-changelog-entry.txt`, since that means the C++ patch needed adjusting for the new
