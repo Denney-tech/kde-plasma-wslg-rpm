@@ -1,24 +1,6 @@
 diff -Nurp a/src/backends/wayland/wayland_display.cpp b/src/backends/wayland/wayland_display.cpp
 --- a/src/backends/wayland/wayland_display.cpp
 +++ b/src/backends/wayland/wayland_display.cpp
-@@ -136,7 +136,7 @@ protected:
-                 break;
-             }
- 
--            pollfd fds[2] = {{m_fd, POLLIN, 0}, {m_quitPipe[0], POLLIN, 0}};
-+            pollfd fds[2] = { { m_fd, POLLIN, 0 }, { m_quitPipe[0], POLLIN, 0 } };
-             poll(fds, 2, -1);
- 
-             if (fds[1].revents & POLLIN) {
-@@ -228,7 +228,7 @@ bool WaylandDisplay::initialize(const QS
-     connect(m_eventThread.get(), &WaylandEventThread::available, this, &WaylandDisplay::flush, Qt::QueuedConnection);
-     m_eventThread->start();
- 
--    static wl_registry_listener registryListener{
-+    static wl_registry_listener registryListener {
-         .global = registry_global,
-         .global_remove = registry_global_remove,
-     };
 @@ -251,7 +251,7 @@ bool WaylandDisplay::initialize(const QS
      }
      if (!m_singlePixelManager) {
@@ -41,32 +23,7 @@ diff -Nurp a/src/backends/wayland/wayland_display.cpp b/src/backends/wayland/way
 diff -Nurp a/src/backends/wayland/wayland_display.h b/src/backends/wayland/wayland_display.h
 --- a/src/backends/wayland/wayland_display.h
 +++ b/src/backends/wayland/wayland_display.h
-@@ -26,7 +26,6 @@ namespace KWayland
- {
- namespace Client
- {
--
- class Compositor;
- class PointerConstraints;
- class PointerGestures;
-@@ -35,16 +34,13 @@ class Seat;
- class XdgDecorationManager;
- class XdgShell;
- class SubCompositor;
--
- }
- }
- 
- namespace KWin::WaylandClient
- {
--
- class LinuxDmabufV1;
- class Viewporter;
--
- }
- 
- namespace KWin
-@@ -86,6 +82,14 @@ public:
+@@ -86,6 +86,14 @@ public:
      xdg_toplevel_icon_manager_v1 *toplevelIconManager() const;
      zwp_keyboard_shortcuts_inhibit_manager_v1 *keyboardShortcutsInhibitManager() const;
  
@@ -81,7 +38,7 @@ diff -Nurp a/src/backends/wayland/wayland_display.h b/src/backends/wayland/wayla
  public Q_SLOTS:
      void flush();
  
-@@ -96,6 +100,7 @@ private:
+@@ -96,6 +104,7 @@ private:
      wl_display *m_display = nullptr;
      wl_registry *m_registry = nullptr;
      wl_shm *m_shm = nullptr;
@@ -104,21 +61,18 @@ diff -Nurp a/src/backends/wayland/wayland_layer.cpp b/src/backends/wayland/wayla
      const auto display = output->backend()->display();
      if (auto manager = display->tearingControl()) {
          m_tearingControl = wp_tearing_control_manager_v1_get_tearing_control(manager, *m_surface);
-@@ -77,21 +82,28 @@ bool WaylandLayer::test() const
-     return true;
- }
+@@ -79,12 +84,23 @@ bool WaylandLayer::test() const
  
--void WaylandLayer::setBuffer(GraphicsBuffer *buffer, const Region &deviceDamagedRegion)
-+void WaylandLayer::setBuffer(wl_buffer *buffer, const Region &deviceDamagedRegion)
+ void WaylandLayer::setBuffer(GraphicsBuffer *buffer, const Region &deviceDamagedRegion)
  {
--    m_pendingBuffer = buffer;
--    m_pendingDamage = deviceDamagedRegion;
 +    if (m_directToOutput) {
-+        static_cast<WaylandOutput *>(m_output.get())->attachContentBuffer(buffer, QRegion(deviceDamagedRegion));
++        // WaylandBackend::importBuffer takes care of the buffer's life time from here on
++        auto output = static_cast<WaylandOutput *>(m_output.get());
++        output->attachContentBuffer(buffer ? output->backend()->importBuffer(buffer) : nullptr, QRegion(deviceDamagedRegion));
 +        return;
 +    }
-+    m_surface->attachBuffer(buffer);
-+    m_surface->damageBuffer(QRegion(deviceDamagedRegion));
+     m_pendingBuffer = buffer;
+     m_pendingDamage = deviceDamagedRegion;
  }
  
  void WaylandLayer::commit(PresentationMode presentationMode)
@@ -129,85 +83,12 @@ diff -Nurp a/src/backends/wayland/wayland_layer.cpp b/src/backends/wayland/wayla
 +        return;
 +    }
      if (!isEnabled()) {
--        m_pendingBuffer.reset();
--        m_surface->attachBuffer((wl_buffer *)nullptr);
-+        setBuffer(nullptr, Region{});
-         m_surface->commit(KWayland::Client::Surface::CommitFlag::None);
-         return;
-     }
--    WaylandOutput *output = static_cast<WaylandOutput *>(m_output.get());
-     // this is a bit annoying, we need a new Wayland protocol
-     // to do this properly with fractional scaling. Until we
-     // have that, it may cause blurriness in some cases!
-@@ -102,7 +114,7 @@ void WaylandLayer::commit(PresentationMo
-     }
-     m_subSurface->setPosition(logicalTarget.topLeft());
-     if (m_colorSurface && m_color != m_previousColor) {
--        const auto imageDescription = output->backend()->display()->colorManager()->createImageDescription(*m_color);
-+        const auto imageDescription = static_cast<WaylandOutput *>(m_output.get())->backend()->display()->colorManager()->createImageDescription(*m_color);
-         wp_color_management_surface_v1_set_image_description(m_colorSurface, imageDescription, WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL);
-         wp_image_description_v1_destroy(imageDescription);
-         m_previousColor = m_color;
-@@ -114,12 +126,6 @@ void WaylandLayer::commit(PresentationMo
-             wp_tearing_control_v1_set_presentation_hint(m_tearingControl, WP_TEARING_CONTROL_V1_PRESENTATION_HINT_VSYNC);
-         }
-     }
--    if (m_pendingBuffer) {
--        m_surface->attachBuffer(output->backend()->importBuffer(m_pendingBuffer.buffer()));
--        m_surface->damageBuffer(QRegion(m_pendingDamage));
--        // WaylandBackend::importBuffer takes care of the buffers life time from here on
--        m_pendingBuffer.reset();
--    }
-     m_surface->commit(KWayland::Client::Surface::CommitFlag::None);
- }
- 
-@@ -132,6 +138,5 @@ KWayland::Client::SubSurface *WaylandLay
- {
-     return m_subSurface.get();
- }
--
- }
- }
+         m_pendingBuffer.reset();
+         m_surface->attachBuffer((wl_buffer *)nullptr);
 diff -Nurp a/src/backends/wayland/wayland_layer.h b/src/backends/wayland/wayland_layer.h
 --- a/src/backends/wayland/wayland_layer.h
 +++ b/src/backends/wayland/wayland_layer.h
-@@ -7,17 +7,14 @@
-     SPDX-License-Identifier: GPL-2.0-or-later
- */
- #pragma once
--#include "core/graphicsbuffer.h"
- #include "core/outputlayer.h"
- 
- namespace KWayland
- {
- namespace Client
- {
--
- class Surface;
- class SubSurface;
--
- }
- }
- 
-@@ -32,9 +29,7 @@ namespace KWin
- {
- namespace WaylandClient
- {
--
- class Viewport;
--
- }
- 
- namespace Wayland
-@@ -49,13 +44,17 @@ public:
-     ~WaylandLayer() override;
- 
-     bool test() const;
--    void setBuffer(GraphicsBuffer *buffer, const Region &deviceDamagedRegion);
-+    void setBuffer(wl_buffer *buffer, const Region &deviceDamagedRegion);
-     void commit(PresentationMode presentationMode);
- 
-     KWayland::Client::Surface *surface() const;
+@@ -56,6 +56,10 @@ public:
      KWayland::Client::SubSurface *subSurface() const;
  
  protected:
@@ -218,15 +99,6 @@ diff -Nurp a/src/backends/wayland/wayland_layer.h b/src/backends/wayland/wayland
      std::unique_ptr<KWayland::Client::Surface> m_surface;
      std::unique_ptr<KWayland::Client::SubSurface> m_subSurface;
      wp_presentation_feedback *m_presentationFeedback = nullptr;
-@@ -64,8 +63,6 @@ protected:
-     wp_fractional_scale_v1 *m_fractionalScale = nullptr;
-     std::unique_ptr<WaylandClient::Viewport> m_viewport;
-     std::shared_ptr<ColorDescription> m_previousColor;
--    GraphicsBufferRef m_pendingBuffer;
--    Region m_pendingDamage;
- };
- 
- }
 diff -Nurp a/src/backends/wayland/wayland_output.cpp b/src/backends/wayland/wayland_output.cpp
 --- a/src/backends/wayland/wayland_output.cpp
 +++ b/src/backends/wayland/wayland_output.cpp
@@ -360,7 +232,7 @@ diff -Nurp a/src/backends/wayland/wayland_output.cpp b/src/backends/wayland/wayl
      m_surface->setScale(1);
      // commit the subsurfaces before the main surface
      for (OutputLayer *layer : layersToUpdate) {
-@@ -341,11 +428,18 @@ void WaylandOutput::frameDiscarded()
+@@ -341,6 +428,13 @@ void WaylandOutput::frameDiscarded()
      m_frames.pop_front();
  }
  
@@ -374,48 +246,6 @@ diff -Nurp a/src/backends/wayland/wayland_output.cpp b/src/backends/wayland/wayl
  void WaylandOutput::framePresented(std::chrono::nanoseconds timestamp, uint32_t refreshRate)
  {
      if (refreshRate != this->refreshRate()) {
-         m_refreshRate = refreshRate;
--        const auto mode = std::make_shared<OutputMode>(OutputModeline(pixelSize(), m_refreshRate));
-+        const auto mode = std::make_shared<OutputMode>(pixelSize(), m_refreshRate);
-         State next = m_state;
-         next.modes = {mode};
-         next.currentMode = mode;
-@@ -378,7 +472,8 @@ void WaylandOutput::applyChanges(const O
-     // intentionally ignored, as it would get overwritten
-     // with the fractional scale protocol anyways
-     // next.scale = props->scale.value_or(m_state.scale);
--    next.desiredMode = props->desiredMode.value_or(m_state.desiredMode);
-+    next.desiredModeSize = props->desiredModeSize.value_or(m_state.desiredModeSize);
-+    next.desiredModeRefreshRate = props->desiredModeRefreshRate.value_or(m_state.desiredModeRefreshRate);
-     next.uuid = props->uuid.value_or(m_state.uuid);
-     next.replicationSource = props->replicationSource.value_or(m_state.replicationSource);
-     next.dpmsMode = props->dpmsMode.value_or(m_state.dpmsMode);
-@@ -428,7 +523,7 @@ void WaylandOutput::init(const QSize &pi
- {
-     m_renderLoop->setRefreshRate(m_refreshRate);
- 
--    auto mode = std::make_shared<OutputMode>(OutputModeline(pixelSize, m_refreshRate));
-+    auto mode = std::make_shared<OutputMode>(pixelSize, m_refreshRate);
- 
-     State initialState;
-     initialState.modes = {mode};
-@@ -461,7 +556,7 @@ void WaylandOutput::applyConfigure(const
- {
-     m_xdgShellSurface->ackConfigure(serial);
-     if (!size.isEmpty()) {
--        auto mode = std::make_shared<OutputMode>(OutputModeline(size * m_pendingScale, m_refreshRate));
-+        auto mode = std::make_shared<OutputMode>(size * m_pendingScale, m_refreshRate);
- 
-         State next = m_state;
-         next.modes = {mode};
-@@ -558,7 +653,6 @@ QList<OutputLayer *> WaylandOutput::outp
- {
-     return m_layers | std::views::transform(&std::unique_ptr<OutputLayer>::get) | std::ranges::to<QList>();
- }
--
- }
- }
- 
 diff -Nurp a/src/backends/wayland/wayland_output.h b/src/backends/wayland/wayland_output.h
 --- a/src/backends/wayland/wayland_output.h
 +++ b/src/backends/wayland/wayland_output.h
@@ -427,47 +257,7 @@ diff -Nurp a/src/backends/wayland/wayland_output.h b/src/backends/wayland/waylan
  #include <QSize>
  #include <QTimer>
  #include <deque>
-@@ -20,12 +21,10 @@ namespace KWayland
- {
- namespace Client
- {
--
- class Surface;
- class Pointer;
- class LockedPointer;
- class XdgDecoration;
--
- }
- }
- 
-@@ -41,18 +40,14 @@ struct wl_callback_listener;
- 
- namespace KWin
- {
--
- class OutputFrame;
- namespace WaylandClient
- {
--
- class Viewport;
--
- }
- 
- namespace Wayland
- {
--
- class WaylandBackend;
- class ColorSurfaceFeedback;
- 
-@@ -83,7 +78,6 @@ private:
- class WaylandOutput : public BackendOutput
- {
-     Q_OBJECT
--
- public:
-     WaylandOutput(const QString &name, WaylandBackend *backend);
-     ~WaylandOutput() override;
-@@ -106,6 +100,10 @@ public:
+@@ -106,6 +107,10 @@ public:
      void frameDiscarded();
      void framePresented(std::chrono::nanoseconds timestamp, uint32_t refreshRate);
  
@@ -478,7 +268,7 @@ diff -Nurp a/src/backends/wayland/wayland_output.h b/src/backends/wayland/waylan
      void applyChanges(const OutputConfiguration &config) override;
  
      void setOutputLayers(std::vector<std::unique_ptr<OutputLayer>> &&layers);
-@@ -149,6 +147,13 @@ private:
+@@ -149,6 +154,13 @@ private:
      quint32 m_pendingConfigureSerial = 0;
      QSize m_pendingConfigureSize;
      QTimer m_configureThrottleTimer;

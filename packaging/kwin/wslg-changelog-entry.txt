@@ -1,4 +1,6 @@
-* Sun Sep 06 2026 kde-plasma-wslg-rpm <kde-plasma-wslg-rpm@users.noreply.github.com> - 6.6.4-2.wslg1
+* Tue Nov 24 2026 kde-plasma-wslg-rpm <kde-plasma-wslg-rpm@users.noreply.github.com> - 6.7.5-1.wslg1
+- Rebase onto kwin 6.7.5 (RHEL 10.3): WaylandLayer::setBuffer now takes a GraphicsBuffer;
+  the direct-to-output path imports it immediately
 - WSLg nested-Wayland (weston-rdprail) RAIL fixes: detect weston_rdprail_shell, paint the
   primary layer onto the toplevel surface instead of a subsurface, full-size black
   background buffer, low-rate heartbeat repaint (Patch1000)
