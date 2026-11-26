@@ -71,7 +71,8 @@ jobs:
       - name: Regenerate wslg-kwin-rail.patch and verify the spec overlay
         id: rebase
         run: |
-          if scripts/gen-patch.sh --check; then
+          # merged overlay sources count as a change even if the patch text is identical
+          if scripts/gen-patch.sh --check && [ -z "$(git status --porcelain -- packaging/kwin/src)" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             scripts/gen-patch.sh

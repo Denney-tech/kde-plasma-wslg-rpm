@@ -52,17 +52,24 @@ for f in "$PKG_DIR"/kwin/src/*; do
     [ -f "$tmp/old/kwin-$oldver/$rel" ] || die "$rel missing from kwin-$oldver — can't use it as the merge base"
     [ -f "$tmp/new/kwin-$newver/$rel" ] || die "$rel missing from kwin-$newver — the tree moved, port src/$(basename "$f") by hand"
 done
-restore=0
+# Merge into scratch copies and only move them into src/ once every file merged (cleanly
+# or with conflict markers): a fatal git error part-way through then leaves src/
+# untouched and dist-git restored to <old-ref>, so a re-run redoes the whole merge.
+mkdir "$tmp/merged"
 conflicts=()
 for f in "$PKG_DIR"/kwin/src/*; do
     rel="src/backends/wayland/$(basename "$f")"
+    out="$tmp/merged/$(basename "$f")"
+    cp "$f" "$out"
     # exit status = number of conflicts (capped at 127); git's -1 error status is 255
     rc=0
     git merge-file -L "ours (packaging/kwin/src)" -L "kwin-$oldver" -L "kwin-$newver" \
-        "$f" "$tmp/old/kwin-$oldver/$rel" "$tmp/new/kwin-$newver/$rel" || rc=$?
-    [ "$rc" -le 127 ] || die "git merge-file failed on $f (status $rc) — not a conflict, nothing was merged"
+        "$out" "$tmp/old/kwin-$oldver/$rel" "$tmp/new/kwin-$newver/$rel" || rc=$?
+    [ "$rc" -le 127 ] || die "git merge-file failed on $f (status $rc) — not a conflict; src/ left untouched"
     [ "$rc" -eq 0 ] || conflicts+=("$f")
 done
+restore=0
+cp "$tmp/merged"/* "$PKG_DIR/kwin/src/"
 if [ "${#conflicts[@]}" -gt 0 ]; then
     printf '  conflict: %s\n' "${conflicts[@]}" >&2
     die "upstream kwin $newver changed code our overlay also touches — resolve the conflict markers by hand, then run scripts/gen-patch.sh"
