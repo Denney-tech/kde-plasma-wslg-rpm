@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.1](https://github.com/Denney-tech/kde-plasma-wslg-rpm/compare/v1.1.0...v1.1.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **ci:** 3-way merge kwin overlay sources on rebase ([#8](https://github.com/Denney-tech/kde-plasma-wslg-rpm/issues/8)) ([9cde01c](https://github.com/Denney-tech/kde-plasma-wslg-rpm/commit/9cde01c69031010afb9c5ac0f2c5ec145a4a94ed))
+* **ci:** don't hard-code the kwin version in the libkwin strings check ([4a81ab7](https://github.com/Denney-tech/kde-plasma-wslg-rpm/commit/4a81ab7aebc7ed61d691ce264d6f9290f086eeba))
+* **kwin:** rebase WSLg overlay onto kwin 6.7.5 ([d51e7a1](https://github.com/Denney-tech/kde-plasma-wslg-rpm/commit/d51e7a1cbb1638ad7f7d286d664551a9f118f074))
+* restore kwin dist-git pin to epel10.3 (01bd7b8) ([1d824a2](https://github.com/Denney-tech/kde-plasma-wslg-rpm/commit/1d824a2fddc378f7b32ac7071922483615e952f2))
+* track epel10.3 (RHEL 10.3) ([47b2715](https://github.com/Denney-tech/kde-plasma-wslg-rpm/commit/47b2715228ed275e18330f671151802aba6fadd1))
+
 ## [1.1.0](https://github.com/Denney-tech/kde-plasma-wslg-rpm/compare/v1.0.0...v1.1.0) (2026-09-15)
 
 
