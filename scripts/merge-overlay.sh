@@ -21,15 +21,17 @@ set -euo pipefail
 old_ref="$1"
 new_ref="$2"
 
-tmp="$(mktemp -d)"
+# Install the rollback trap before anything (even mktemp) can fail.
+tmp=""
 restore=1
 cleanup() {
     if [ "$restore" = 1 ]; then
         git -C "$DISTGIT" checkout -q "$old_ref" || true
     fi
-    rm -rf "$tmp"
+    if [ -n "$tmp" ]; then rm -rf "$tmp"; fi
 }
 trap cleanup EXIT
+tmp="$(mktemp -d)"
 
 # fetch_kwin_tarball reads the version + checksum from the dist-git checkout.
 git -C "$DISTGIT" checkout -q "$old_ref"
