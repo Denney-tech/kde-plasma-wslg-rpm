@@ -56,8 +56,12 @@ restore=0
 conflicts=()
 for f in "$PKG_DIR"/kwin/src/*; do
     rel="src/backends/wayland/$(basename "$f")"
+    # exit status = number of conflicts (capped at 127); git's -1 error status is 255
+    rc=0
     git merge-file -L "ours (packaging/kwin/src)" -L "kwin-$oldver" -L "kwin-$newver" \
-        "$f" "$tmp/old/kwin-$oldver/$rel" "$tmp/new/kwin-$newver/$rel" || conflicts+=("$f")
+        "$f" "$tmp/old/kwin-$oldver/$rel" "$tmp/new/kwin-$newver/$rel" || rc=$?
+    [ "$rc" -le 127 ] || die "git merge-file failed on $f (status $rc) — not a conflict, nothing was merged"
+    [ "$rc" -eq 0 ] || conflicts+=("$f")
 done
 if [ "${#conflicts[@]}" -gt 0 ]; then
     printf '  conflict: %s\n' "${conflicts[@]}" >&2
