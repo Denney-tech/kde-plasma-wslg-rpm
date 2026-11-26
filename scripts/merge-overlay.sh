@@ -24,11 +24,12 @@ new_ref="$2"
 # Install the rollback trap before anything (even mktemp) can fail.
 tmp=""
 restore=1
+keep_tmp=0
 cleanup() {
     if [ "$restore" = 1 ]; then
         git -C "$DISTGIT" checkout -q "$old_ref" || true
     fi
-    if [ -n "$tmp" ]; then rm -rf "$tmp"; fi
+    if [ -n "$tmp" ] && [ "$keep_tmp" = 0 ]; then rm -rf "$tmp"; fi
 }
 trap cleanup EXIT
 tmp="$(mktemp -d)"
@@ -62,7 +63,8 @@ conflicts=()
 for f in "$PKG_DIR"/kwin/src/*; do
     rel="src/backends/wayland/$(basename "$f")"
     out="$tmp/merged/$(basename "$f")"
-    cp "$f" "$out" && chmod u+w "$out"
+    cp "$f" "$out"
+    chmod u+w "$out"
     # exit status = number of conflicts (capped at 127); git's -1 error status is 255
     rc=0
     git merge-file -L "ours (packaging/kwin/src)" -L "kwin-$oldver" -L "kwin-$newver" \
@@ -75,8 +77,10 @@ done
 mkdir "$tmp/orig"
 cp -p "$PKG_DIR"/kwin/src/* "$tmp/orig/"
 if ! cp "$tmp/merged"/* "$PKG_DIR/kwin/src/"; then
-    cp -p "$tmp/orig"/* "$PKG_DIR/kwin/src/" ||
-        die "installing merged files failed AND restoring the originals failed — restore packaging/kwin/src/ with git checkout"
+    if ! cp -p "$tmp/orig"/* "$PKG_DIR/kwin/src/"; then
+        keep_tmp=1
+        die "installing merged files failed AND restoring the originals failed — the pre-merge packaging/kwin/src/ files (incl. uncommitted edits) are kept in $tmp/orig"
+    fi
     die "installing the merged files into packaging/kwin/src/ failed — originals restored, nothing merged"
 fi
 restore=0
