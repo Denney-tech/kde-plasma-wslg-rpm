@@ -86,6 +86,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           branch="rhel-10-${NEW_MINOR}"
+          # An earlier scheduled run already opened the PR and it hasn't merged yet —
+          # don't try to recreate (and fail to push over) its branch.
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+            echo "::notice::branch $branch already exists (PR pending review) — nothing to do"
+            exit 0
+          fi
           git switch -c "$branch"
           scripts/rebase-kwin.sh "$NEW_BRANCH"
           git add .gitmodules packaging/kwin/dist-git packaging/kwin/src packaging/kwin/wslg-kwin-rail.patch
