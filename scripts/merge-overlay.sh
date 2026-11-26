@@ -62,7 +62,7 @@ conflicts=()
 for f in "$PKG_DIR"/kwin/src/*; do
     rel="src/backends/wayland/$(basename "$f")"
     out="$tmp/merged/$(basename "$f")"
-    cp "$f" "$out"
+    cp "$f" "$out" && chmod u+w "$out"
     # exit status = number of conflicts (capped at 127); git's -1 error status is 255
     rc=0
     git merge-file -L "ours (packaging/kwin/src)" -L "kwin-$oldver" -L "kwin-$newver" \
@@ -70,8 +70,16 @@ for f in "$PKG_DIR"/kwin/src/*; do
     [ "$rc" -le 127 ] || die "git merge-file failed on $f (status $rc) — not a conflict; src/ left untouched"
     [ "$rc" -eq 0 ] || conflicts+=("$f")
 done
+# Install the merged files; if that copy fails part-way (e.g. disk full), put the
+# originals back and die with restore still set, so the trap restores <old-ref> too.
+mkdir "$tmp/orig"
+cp -p "$PKG_DIR"/kwin/src/* "$tmp/orig/"
+if ! cp "$tmp/merged"/* "$PKG_DIR/kwin/src/"; then
+    cp -p "$tmp/orig"/* "$PKG_DIR/kwin/src/" ||
+        die "installing merged files failed AND restoring the originals failed — restore packaging/kwin/src/ with git checkout"
+    die "installing the merged files into packaging/kwin/src/ failed — originals restored, nothing merged"
+fi
 restore=0
-cp "$tmp/merged"/* "$PKG_DIR/kwin/src/"
 if [ "${#conflicts[@]}" -gt 0 ]; then
     printf '  conflict: %s\n' "${conflicts[@]}" >&2
     die "upstream kwin $newver changed code our overlay also touches — resolve the conflict markers by hand, then run scripts/gen-patch.sh"
