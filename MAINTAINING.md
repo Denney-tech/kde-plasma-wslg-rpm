@@ -16,7 +16,7 @@ packaging/kwin/
   kwin_wayland_wrapper.shim  Source1000
 packaging/kde-plasma-wslg/       noarch: launcher + control cmd + user unit + tmpfiles + kscreenlockerrc
 packaging/kde-plasma-wslg-repo/  noarch: the .repo file + RPM-GPG-KEY
-scripts/                    build-srpm, build-rpms, gen-patch, check-specs, rebase-kwin, make-repo
+scripts/                    build-srpm, build-rpms, gen-patch, check-specs, merge-overlay, rebase-kwin, make-repo
 ```
 
 The kwin **binary** RPM version comes from EPEL (`Version:`/`Release:` in `dist-git/kwin.spec`).

@@ -10,9 +10,6 @@ set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 
 ref="${1:-}"
-merge_tmp="$(mktemp -d)"
-trap 'rm -rf "$merge_tmp"' EXIT
-oldver="$(kwin_version)"
 cd "$DISTGIT"
 old_head="$(git rev-parse HEAD)"
 git fetch --tags origin
@@ -30,14 +27,19 @@ newrel="$(spec_field kwin.spec Release:)"
 log "dist-git now at $(git rev-parse --short HEAD) — kwin $newver-$newrel"
 cd "$REPO_ROOT"
 
+# Merge our whole-file overlay onto the new upstream sources first, before anything
+# else can fail: if it fails before merging, it restores dist-git to $old_head so a
+# re-run still merges from the right base (see the script header).
+scripts/merge-overlay.sh "$old_head" "$new_head"
+
 log "checking kwin.spec.patch still applies"
 # The overlay no longer touches the Release: line or %changelog (rendered_spec() applies
 # those by anchor instead, see lib.sh) — the three remaining hunks are anchored on spec
 # text that upstream essentially never moves, so this should apply with zero fuzz. If it
 # needs fuzz at all, that's the overlay's anchors having drifted and worth tightening by
 # hand even though it technically still applied.
-tmp="$merge_tmp/spec"
-mkdir "$tmp"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
 cp "$DISTGIT/kwin.spec" "$tmp/kwin.spec"
 if patch -p1 -d "$tmp" --fuzz=0 < packaging/kwin/kwin.spec.patch > "$tmp/patchlog" 2>&1; then
     log "kwin.spec.patch applies cleanly, no changes needed"
@@ -47,36 +49,6 @@ elif patch -p1 -d "$tmp" --fuzz=3 < packaging/kwin/kwin.spec.patch > "$tmp/patch
 else
     cat "$tmp/patchlog" >&2
     die "kwin.spec.patch does not apply to the new dist-git spec — edit it by hand, then re-run"
-fi
-
-# packaging/kwin/src/ holds whole-file copies of our modified upstream sources, and
-# gen-patch.sh copies them over the new tarball. Copying alone would silently revert
-# every upstream change to those files, so 3-way merge them onto the new version
-# first (base = old upstream, ours = src/, theirs = new upstream).
-if [ "$oldver" != "$newver" ]; then
-    log "3-way merging packaging/kwin/src/ from kwin $oldver onto $newver"
-    # fetch_kwin_tarball reads the version + checksum from the dist-git checkout, so
-    # briefly step back to the old commit for the merge base.
-    git -C "$DISTGIT" checkout -q "$old_head"
-    oldtar="$(fetch_kwin_tarball "$merge_tmp/old")"
-    git -C "$DISTGIT" checkout -q "$new_head"
-    newtar="$(fetch_kwin_tarball "$merge_tmp/new")"
-    tar -C "$merge_tmp/old" -xf "$oldtar"
-    tar -C "$merge_tmp/new" -xf "$newtar"
-    conflicts=()
-    for f in "$PKG_DIR"/kwin/src/*; do
-        rel="src/backends/wayland/$(basename "$f")"
-        base="$merge_tmp/old/kwin-$oldver/$rel"
-        theirs="$merge_tmp/new/kwin-$newver/$rel"
-        [ -f "$base" ] || die "$rel missing from kwin-$oldver — can't use it as the merge base"
-        [ -f "$theirs" ] || die "$rel missing from kwin-$newver — the tree moved, port src/$(basename "$f") by hand"
-        git merge-file -L "ours (packaging/kwin/src)" -L "kwin-$oldver" -L "kwin-$newver" \
-            "$f" "$base" "$theirs" || conflicts+=("$f")
-    done
-    if [ "${#conflicts[@]}" -gt 0 ]; then
-        printf '  conflict: %s\n' "${conflicts[@]}" >&2
-        die "upstream kwin $newver changed code our overlay also touches — resolve the conflict markers above by hand, then run scripts/gen-patch.sh"
-    fi
 fi
 
 log "regenerating wslg-kwin-rail.patch against kwin $newver"
