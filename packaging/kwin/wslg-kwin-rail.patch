@@ -23,7 +23,7 @@ diff -Nurp a/src/backends/wayland/wayland_display.cpp b/src/backends/wayland/way
 diff -Nurp a/src/backends/wayland/wayland_display.h b/src/backends/wayland/wayland_display.h
 --- a/src/backends/wayland/wayland_display.h
 +++ b/src/backends/wayland/wayland_display.h
-@@ -82,6 +82,14 @@ public:
+@@ -86,6 +86,14 @@ public:
      xdg_toplevel_icon_manager_v1 *toplevelIconManager() const;
      zwp_keyboard_shortcuts_inhibit_manager_v1 *keyboardShortcutsInhibitManager() const;
  
@@ -38,7 +38,7 @@ diff -Nurp a/src/backends/wayland/wayland_display.h b/src/backends/wayland/wayla
  public Q_SLOTS:
      void flush();
  
-@@ -92,6 +100,7 @@ private:
+@@ -96,6 +104,7 @@ private:
      wl_display *m_display = nullptr;
      wl_registry *m_registry = nullptr;
      wl_shm *m_shm = nullptr;
@@ -61,16 +61,18 @@ diff -Nurp a/src/backends/wayland/wayland_layer.cpp b/src/backends/wayland/wayla
      const auto display = output->backend()->display();
      if (auto manager = display->tearingControl()) {
          m_tearingControl = wp_tearing_control_manager_v1_get_tearing_control(manager, *m_surface);
-@@ -79,12 +84,21 @@ bool WaylandLayer::test() const
+@@ -79,12 +84,23 @@ bool WaylandLayer::test() const
  
- void WaylandLayer::setBuffer(wl_buffer *buffer, const Region &deviceDamagedRegion)
+ void WaylandLayer::setBuffer(GraphicsBuffer *buffer, const Region &deviceDamagedRegion)
  {
 +    if (m_directToOutput) {
-+        static_cast<WaylandOutput *>(m_output.get())->attachContentBuffer(buffer, QRegion(deviceDamagedRegion));
++        // WaylandBackend::importBuffer takes care of the buffer's life time from here on
++        auto output = static_cast<WaylandOutput *>(m_output.get());
++        output->attachContentBuffer(buffer ? output->backend()->importBuffer(buffer) : nullptr, QRegion(deviceDamagedRegion));
 +        return;
 +    }
-     m_surface->attachBuffer(buffer);
-     m_surface->damageBuffer(QRegion(deviceDamagedRegion));
+     m_pendingBuffer = buffer;
+     m_pendingDamage = deviceDamagedRegion;
  }
  
  void WaylandLayer::commit(PresentationMode presentationMode)
@@ -81,12 +83,12 @@ diff -Nurp a/src/backends/wayland/wayland_layer.cpp b/src/backends/wayland/wayla
 +        return;
 +    }
      if (!isEnabled()) {
-         setBuffer(nullptr, Region{});
-         m_surface->commit(KWayland::Client::Surface::CommitFlag::None);
+         m_pendingBuffer.reset();
+         m_surface->attachBuffer((wl_buffer *)nullptr);
 diff -Nurp a/src/backends/wayland/wayland_layer.h b/src/backends/wayland/wayland_layer.h
 --- a/src/backends/wayland/wayland_layer.h
 +++ b/src/backends/wayland/wayland_layer.h
-@@ -51,6 +51,10 @@ public:
+@@ -56,6 +56,10 @@ public:
      KWayland::Client::SubSurface *subSurface() const;
  
  protected:
@@ -255,7 +257,7 @@ diff -Nurp a/src/backends/wayland/wayland_output.h b/src/backends/wayland/waylan
  #include <QSize>
  #include <QTimer>
  #include <deque>
-@@ -99,6 +100,10 @@ public:
+@@ -106,6 +107,10 @@ public:
      void frameDiscarded();
      void framePresented(std::chrono::nanoseconds timestamp, uint32_t refreshRate);
  
@@ -266,7 +268,7 @@ diff -Nurp a/src/backends/wayland/wayland_output.h b/src/backends/wayland/waylan
      void applyChanges(const OutputConfiguration &config) override;
  
      void setOutputLayers(std::vector<std::unique_ptr<OutputLayer>> &&layers);
-@@ -142,6 +147,13 @@ private:
+@@ -149,6 +154,13 @@ private:
      quint32 m_pendingConfigureSerial = 0;
      QSize m_pendingConfigureSize;
      QTimer m_configureThrottleTimer;

@@ -82,14 +82,16 @@ bool WaylandLayer::test() const
     return true;
 }
 
-void WaylandLayer::setBuffer(wl_buffer *buffer, const Region &deviceDamagedRegion)
+void WaylandLayer::setBuffer(GraphicsBuffer *buffer, const Region &deviceDamagedRegion)
 {
     if (m_directToOutput) {
-        static_cast<WaylandOutput *>(m_output.get())->attachContentBuffer(buffer, QRegion(deviceDamagedRegion));
+        // WaylandBackend::importBuffer takes care of the buffer's life time from here on
+        auto output = static_cast<WaylandOutput *>(m_output.get());
+        output->attachContentBuffer(buffer ? output->backend()->importBuffer(buffer) : nullptr, QRegion(deviceDamagedRegion));
         return;
     }
-    m_surface->attachBuffer(buffer);
-    m_surface->damageBuffer(QRegion(deviceDamagedRegion));
+    m_pendingBuffer = buffer;
+    m_pendingDamage = deviceDamagedRegion;
 }
 
 void WaylandLayer::commit(PresentationMode presentationMode)
@@ -100,10 +102,12 @@ void WaylandLayer::commit(PresentationMode presentationMode)
         return;
     }
     if (!isEnabled()) {
-        setBuffer(nullptr, Region{});
+        m_pendingBuffer.reset();
+        m_surface->attachBuffer((wl_buffer *)nullptr);
         m_surface->commit(KWayland::Client::Surface::CommitFlag::None);
         return;
     }
+    WaylandOutput *output = static_cast<WaylandOutput *>(m_output.get());
     // this is a bit annoying, we need a new Wayland protocol
     // to do this properly with fractional scaling. Until we
     // have that, it may cause blurriness in some cases!
@@ -114,7 +118,7 @@ void WaylandLayer::commit(PresentationMode presentationMode)
     }
     m_subSurface->setPosition(logicalTarget.topLeft());
     if (m_colorSurface && m_color != m_previousColor) {
-        const auto imageDescription = static_cast<WaylandOutput *>(m_output.get())->backend()->display()->colorManager()->createImageDescription(*m_color);
+        const auto imageDescription = output->backend()->display()->colorManager()->createImageDescription(*m_color);
         wp_color_management_surface_v1_set_image_description(m_colorSurface, imageDescription, WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL);
         wp_image_description_v1_destroy(imageDescription);
         m_previousColor = m_color;
@@ -125,6 +129,12 @@ void WaylandLayer::commit(PresentationMode presentationMode)
         } else {
             wp_tearing_control_v1_set_presentation_hint(m_tearingControl, WP_TEARING_CONTROL_V1_PRESENTATION_HINT_VSYNC);
         }
+    }
+    if (m_pendingBuffer) {
+        m_surface->attachBuffer(output->backend()->importBuffer(m_pendingBuffer.buffer()));
+        m_surface->damageBuffer(QRegion(m_pendingDamage));
+        // WaylandBackend::importBuffer takes care of the buffers life time from here on
+        m_pendingBuffer.reset();
     }
     m_surface->commit(KWayland::Client::Surface::CommitFlag::None);
 }
@@ -138,5 +148,6 @@ KWayland::Client::SubSurface *WaylandLayer::subSurface() const
 {
     return m_subSurface.get();
 }
+
 }
 }
