@@ -86,10 +86,20 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           branch="rhel-10-${NEW_MINOR}"
-          git switch -c "$branch"
-          scripts/rebase-kwin.sh "$NEW_BRANCH"
-          git add .gitmodules packaging/kwin/dist-git packaging/kwin/wslg-kwin-rail.patch
-          git commit -m "fix: track ${NEW_BRANCH} (RHEL 10.${NEW_MINOR})
+          # An earlier scheduled run already pushed this branch. If its PR is open it's
+          # just awaiting review; if the PR step failed last time, open it now — never
+          # recreate (and fail to push over) the branch.
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+            if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]; then
+              echo "::notice::PR for $branch is already open (pending review) — nothing to do"
+              exit 0
+            fi
+            echo "::notice::branch $branch exists without an open PR — opening one"
+          else
+            git switch -c "$branch"
+            scripts/rebase-kwin.sh "$NEW_BRANCH"
+            git add .gitmodules packaging/kwin/dist-git packaging/kwin/src packaging/kwin/wslg-kwin-rail.patch
+            git commit -m "fix: track ${NEW_BRANCH} (RHEL 10.${NEW_MINOR})
 
           RHEL 10.${NEW_MINOR} is the latest published minor release (per
           endoflife.date) and ${NEW_BRANCH} now exists on the kwin dist-git. Move the
@@ -97,7 +107,8 @@ jobs:
           tracks CentOS Stream ahead of RHEL's actual GA).
 
           Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
-          git push origin "$branch"
+            git push origin "$branch"
+          fi
           gh pr create --base main --head "$branch" \
             --title "Track ${NEW_BRANCH} (RHEL 10.${NEW_MINOR})" \
             --body "Automated: RHEL 10.${NEW_MINOR} is out and \`${NEW_BRANCH}\` exists \

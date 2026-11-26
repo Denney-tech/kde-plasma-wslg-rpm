@@ -11,19 +11,28 @@ set -euo pipefail
 
 ref="${1:-}"
 cd "$DISTGIT"
+old_head="$(git rev-parse HEAD)"
 git fetch --tags origin
+# Only resolve the target here — merge-overlay.sh does the checkout, so dist-git never
+# sits at the new ref unmerged (a re-run would then see old == new and skip the merge).
 if [ -n "$ref" ]; then
-    git checkout -q "origin/$ref" 2> /dev/null || git checkout -q "$ref"
-    git -C "$REPO_ROOT" config -f "$REPO_ROOT/.gitmodules" \
-        submodule.packaging/kwin/dist-git.branch "$ref" 2> /dev/null || true
+    new_head="$(git rev-parse -q --verify "origin/$ref^{commit}" || git rev-parse --verify "$ref^{commit}")"
 else
     br="$(git -C "$REPO_ROOT" config -f "$REPO_ROOT/.gitmodules" submodule.packaging/kwin/dist-git.branch)"
-    git checkout -q "origin/$br"
+    new_head="$(git rev-parse --verify "origin/$br^{commit}")"
 fi
-newver="$(spec_field kwin.spec Version:)"
-newrel="$(spec_field kwin.spec Release:)"
-log "dist-git now at $(git rev-parse --short HEAD) — kwin $newver-$newrel"
 cd "$REPO_ROOT"
+if [ -n "$ref" ]; then
+    git config -f "$REPO_ROOT/.gitmodules" submodule.packaging/kwin/dist-git.branch "$ref" 2> /dev/null || true
+fi
+
+# Merge our whole-file overlay onto the new upstream sources first, before anything
+# else can fail. It checks out $new_head; if it fails before merging, it restores
+# dist-git to $old_head so a re-run still merges from the right base.
+scripts/merge-overlay.sh "$old_head" "$new_head"
+newver="$(spec_field "$DISTGIT/kwin.spec" Version:)"
+newrel="$(spec_field "$DISTGIT/kwin.spec" Release:)"
+log "dist-git now at $(git -C "$DISTGIT" rev-parse --short HEAD) — kwin $newver-$newrel"
 
 log "checking kwin.spec.patch still applies"
 # The overlay no longer touches the Release: line or %changelog (rendered_spec() applies
@@ -53,7 +62,7 @@ cat >&2 << EOF
 
 Next:
   1. scripts/build-rpms.sh kwin   (in an el10 container) to prove it still builds.
-  2. git add packaging/kwin/dist-git packaging/kwin/wslg-kwin-rail.patch .gitmodules
+  2. git add packaging/kwin/dist-git packaging/kwin/src packaging/kwin/wslg-kwin-rail.patch .gitmodules
   3. commit as  fix: rebase kwin onto $newver
 EOF
 if [ "$before_patch_hash" != "$after_patch_hash" ]; then
